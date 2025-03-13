@@ -11,10 +11,10 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: 'npm'
@@ -25,13 +25,15 @@ jobs:
       - name: Build Project
         run: npm run build
 
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v2
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v2
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4  # ✅ 更新為 v4
         with:
-          path: './dist' # 指定 dist 資料夾上傳到 GitHub Pages
+          name: github-pages
+          path: dist
 
       - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v2
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: dist
+          clean: true
