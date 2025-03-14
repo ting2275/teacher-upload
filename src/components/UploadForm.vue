@@ -49,8 +49,6 @@
 </template>
 
 <script>
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import font from "../assets/NotoSansTC-Regular.js";
 import fontBold from "../assets/NotoSansTC-Bold.js";
 import { nextTick } from "vue";
@@ -125,13 +123,20 @@ export default {
     async generatePDF() {
       await nextTick();
 
+      const { jsPDF } = await import('jspdf');
+
       const pdf = new jsPDF("p", "mm", "a4");
 
       // 設定中文字型，確保 PDF 顯示正確
-      pdf.addFileToVFS("NotoSansTC-Regular.ttf", font);
-      pdf.addFont("NotoSansTC-Regular.ttf", "NotoSansTC", "normal");
-      pdf.addFileToVFS("NotoSansTC-Bold.ttf", fontBold);
-      pdf.addFont("NotoSansTC-Bold.ttf", "NotoSansTC-Bold", "normal");
+      const fontPath = import.meta.env.BASE_URL + "fonts/NotoSansTC-Regular.ttf";
+      const fontBoldPath = import.meta.env.BASE_URL + "fonts/NotoSansTC-Bold.ttf";
+      pdf.addFont(fontPath, "NotoSansTC", "normal");
+      pdf.addFont(fontBoldPath, "NotoSansTC-Bold", "normal");
+
+      // pdf.addFileToVFS("NotoSansTC-Regular.ttf", fontRegular);
+      // pdf.addFont("NotoSansTC-Regular.ttf", "NotoSansTC", "normal");
+      // pdf.addFileToVFS("NotoSansTC-Bold.ttf", fontBold);
+      // pdf.addFont("NotoSansTC-Bold.ttf", "NotoSansTC-Bold", "normal");
 
       pdf.setFont("NotoSansTC-Bold");
       // 縮小表頭間距
@@ -250,53 +255,6 @@ export default {
           });
         }
       }
-
-      // 插入圖片
-      // for (let i = 0; i < rowCount; i++) {
-      //   let yPos = startY + headHeight + i * rowHeight;
-      //   let imgMaxWidth = columnWidths[1] - 6;
-      //   let imgMaxHeight = rowHeight - 6;
-      //   let imgWidth, imgHeight;
-
-      //   if (this.domains[i].image) {
-      //     let img = this.domains[i].image;
-
-      //     let format = "";
-      //     if (img.startsWith("data:image/png")) format = "PNG";
-      //     if (img.startsWith("data:image/jpg") || img.startsWith("data:image/jpeg")) format = "JPEG";
-
-      //     if (!format) {
-      //       alert("圖片格式不正確，僅支援 JPG、JPEG、PNG 格式的圖片");
-      //       return;
-      //     }
-
-      //     console.log("圖片格式:", format);
-
-      //     // 確保圖片等比例縮放
-      //     let imageObj = new Image();
-      //     imageObj.src = img;
-      //     await new Promise((resolve) => {
-      //       imageObj.onload = () => {
-      //         let aspectRatio = imageObj.width / imageObj.height;
-      //         if (imgMaxWidth / aspectRatio > imgMaxHeight) {
-      //           imgHeight = imgMaxHeight;
-      //           imgWidth = imgMaxHeight * aspectRatio;
-      //         } else {
-      //           imgWidth = imgMaxWidth;
-      //           imgHeight = imgMaxWidth / aspectRatio;
-      //         }
-      //         resolve();
-      //       };
-      //     });
-
-      //     console.log("圖片尺寸:", { imgWidth, imgHeight });
-
-      //     let imgX = startX + columnWidths[0] + (columnWidths[1] - imgWidth) / 2;
-      //     let imgY = yPos + (rowHeight - imgHeight) / 2;
-
-      //     pdf.addImage(img, format, imgX, imgY, imgWidth, imgHeight);
-      //   }
-      // }
       // 設定 PDF 檔名
       let filename = `發展領域記錄表-${this.month}-${this.recorder}.pdf`;
       pdf.save(filename);
