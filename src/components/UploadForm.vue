@@ -7,11 +7,11 @@
       <div class="form-group">
         <label>單元名稱</label>
         <input type="text" v-model="unitName" maxlength="5" placeholder="輸入單元名稱">
-        <small class="error">最多只能輸入5個字</small>
+        <div class="alert alert-info">最多只能輸入5個字</div>
 
         <label>年+月份</label>
         <input type="text" v-model="month" placeholder="輸入年+月份">
-        <small class="example">ex: 114年3月</small>
+        <div class="alert alert-info">ex: 114年3月</div>
 
         <label>班級</label>
         <input type="text" v-model="className" placeholder="輸入班級">
@@ -37,6 +37,7 @@
             </button>
           </div>
         </div>
+        <div class="alert alert-danger">最多只能上傳 2 張圖片</div>
 
         <textarea v-model="domain.description" @input="checkDescriptionLength(domain)" @blur="validateDescription(domain)" placeholder="請輸入發展領域說明" maxlength="60" rows="3"></textarea>
 
@@ -51,6 +52,7 @@
 <script>
 import { nextTick } from "vue";
 import { jsPDF } from "jspdf";
+import { EXIF } from "exif-js";
 
 export default {
   data() {
@@ -109,7 +111,57 @@ export default {
         };
         const reader = new FileReader();
         reader.onload = (e) => {
-          this.domains[domainIndex].images.push(e.target.result);
+          const img = new Image();
+          img.src = e.target.result;
+          img.onload = () => {
+            EXIF.getData(img, () => {
+              const orientation = EXIF.getTag(this, "Orientation");
+              const canvas = document.createElement("canvas");
+              const ctx = canvas.getContext("2d");
+
+              canvas.width = img.width;
+              canvas.height = img.height;
+
+              switch (orientation) {
+                case 2:
+                  ctx.transform(-1, 0, 0, 1, img.width, 0);
+                  break;
+                case 3:
+                  ctx.transform(-1, 0, 0, -1, img.width, img.height);
+                  break;
+                case 4:
+                  ctx.transform(1, 0, 0, -1, 0, img.height);
+                  break;
+                case 5:
+                  canvas.width = img.height;
+                  canvas.height = img.width;
+                  ctx.transform(0, 1, 1, 0, 0, 0);
+                  break;
+                case 6:
+                  canvas.width = img.height;
+                  canvas.height = img.width;
+                  ctx.transform(0, 1, -1, 0, img.height, 0);
+                  break;
+                case 7:
+                  canvas.width = img.height;
+                  canvas.height = img.width;
+                  ctx.transform(0, -1, -1, 0, img.height, img.width);
+                  break;
+                case 8:
+                  canvas.width = img.height;
+                  canvas.height = img.width;
+                  ctx.transform(0, -1, 1, 0, 0, img.width);
+                  break;
+                default:
+                  ctx.transform(1, 0, 0, 1, 0, 0);
+              }
+
+              ctx.drawImage(img, 0, 0, img.width, img.height);
+
+              const rotatedDataUrl = canvas.toDataURL(file.type);
+              this.domains[domainIndex].images.push(rotatedDataUrl);
+            })
+          };
         };
         reader.readAsDataURL(file);
       });

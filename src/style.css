@@ -148,3 +148,36 @@ textarea {
 .pdf-button:hover {
   background: #218838;
 }
+
+.alert {
+  padding: 5px 15px;
+  border-radius: 5px;
+  position: relative;
+  font-size: 14px;
+  text-align: left;
+}
+
+.alert::before {
+  font-size: 16px;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.alert-danger {
+  color: #a94442;
+  background-color: #f8e6e6;
+}
+
+.alert-danger::before {
+  content: "⚠️ ";
+}
+
+.alert-info {
+  color: #31708f;
+  background-color: #e5f3fa;
+}
+
+.alert-info::before {
+  content: "💡 ";
+}
