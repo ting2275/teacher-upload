@@ -114,53 +114,58 @@ export default {
           const img = new Image();
           img.src = e.target.result;
           img.onload = () => {
-            EXIF.getData(img, () => {
-              const orientation = EXIF.getTag(this, "Orientation");
-              const canvas = document.createElement("canvas");
-              const ctx = canvas.getContext("2d");
+            try {
+              EXIF.getData(img, () => {
+                const orientation = EXIF.getTag(img, "Orientation") || 1;
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
 
-              canvas.width = img.width;
-              canvas.height = img.height;
+                canvas.width = img.width;
+                canvas.height = img.height;
 
-              switch (orientation) {
-                case 2:
-                  ctx.transform(-1, 0, 0, 1, img.width, 0);
-                  break;
-                case 3:
-                  ctx.transform(-1, 0, 0, -1, img.width, img.height);
-                  break;
-                case 4:
-                  ctx.transform(1, 0, 0, -1, 0, img.height);
-                  break;
-                case 5:
-                  canvas.width = img.height;
-                  canvas.height = img.width;
-                  ctx.transform(0, 1, 1, 0, 0, 0);
-                  break;
-                case 6:
-                  canvas.width = img.height;
-                  canvas.height = img.width;
-                  ctx.transform(0, 1, -1, 0, img.height, 0);
-                  break;
-                case 7:
-                  canvas.width = img.height;
-                  canvas.height = img.width;
-                  ctx.transform(0, -1, -1, 0, img.height, img.width);
-                  break;
-                case 8:
-                  canvas.width = img.height;
-                  canvas.height = img.width;
-                  ctx.transform(0, -1, 1, 0, 0, img.width);
-                  break;
-                default:
-                  ctx.transform(1, 0, 0, 1, 0, 0);
-              }
+                switch (orientation) {
+                  case 2:
+                    ctx.transform(-1, 0, 0, 1, img.width, 0);
+                    break;
+                  case 3:
+                    ctx.transform(-1, 0, 0, -1, img.width, img.height);
+                    break;
+                  case 4:
+                    ctx.transform(1, 0, 0, -1, 0, img.height);
+                    break;
+                  case 5:
+                    canvas.width = img.height;
+                    canvas.height = img.width;
+                    ctx.transform(0, 1, 1, 0, 0, 0);
+                    break;
+                  case 6:
+                    canvas.width = img.height;
+                    canvas.height = img.width;
+                    ctx.transform(0, 1, -1, 0, img.height, 0);
+                    break;
+                  case 7:
+                    canvas.width = img.height;
+                    canvas.height = img.width;
+                    ctx.transform(0, -1, -1, 0, img.height, img.width);
+                    break;
+                  case 8:
+                    canvas.width = img.height;
+                    canvas.height = img.width;
+                    ctx.transform(0, -1, 1, 0, 0, img.width);
+                    break;
+                  default:
+                    ctx.transform(1, 0, 0, 1, 0, 0);
+                }
 
-              ctx.drawImage(img, 0, 0, img.width, img.height);
+                ctx.drawImage(img, 0, 0, img.width, img.height);
 
-              const rotatedDataUrl = canvas.toDataURL(file.type);
-              this.domains[domainIndex].images.push(rotatedDataUrl);
-            })
+                const rotatedDataUrl = canvas.toDataURL(file.type);
+                this.domains[domainIndex].images.push(rotatedDataUrl);
+              })
+            } catch (error) {
+              console.error("Error reading EXIF data:", error);
+              this.domains[domainIndex].images.push(img.src);
+            }
           };
         };
         reader.readAsDataURL(file);
