@@ -49,9 +49,8 @@
 </template>
 
 <script>
-import font from "../assets/NotoSansTC-Regular.js";
-import fontBold from "../assets/NotoSansTC-Bold.js";
 import { nextTick } from "vue";
+import { jsPDF } from "jspdf";
 
 export default {
   data() {
@@ -120,31 +119,43 @@ export default {
     removeImage(domainIndex, imgIndex) {
       this.domains[domainIndex].images.splice(imgIndex, 1);
     },
+    async loadFont(filename) {
+      const BASE_URL = import.meta.env.BASE_URL || "/";
+      const url = `${BASE_URL}fonts/${filename}`;
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to load font: ${url}`);
+
+      const fontData = await response.arrayBuffer();
+      const binaryString = new Uint8Array(fontData).reduce((acc, byte) => acc + String.fromCharCode(byte), "");
+
+      return btoa(binaryString);
+    },
     async generatePDF() {
       await nextTick();
-
-      const { jsPDF } = await import('jspdf');
-
       const pdf = new jsPDF("p", "mm", "a4");
 
-      // 設定中文字型，確保 PDF 顯示正確
-      const fontPath = import.meta.env.BASE_URL + "fonts/NotoSansTC-Regular.ttf";
-      const fontBoldPath = import.meta.env.BASE_URL + "fonts/NotoSansTC-Bold.ttf";
-      pdf.addFont(fontPath, "NotoSansTC", "normal");
-      pdf.addFont(fontBoldPath, "NotoSansTC-Bold", "normal");
+      // 讀取 NotoSansTC 字體檔案
+      const fontRegular = await this.loadFont("NotoSansTC-Regular.ttf");
+      const fontBold = await this.loadFont("NotoSansTC-Bold.ttf");
 
-      // pdf.addFileToVFS("NotoSansTC-Regular.ttf", fontRegular);
-      // pdf.addFont("NotoSansTC-Regular.ttf", "NotoSansTC", "normal");
-      // pdf.addFileToVFS("NotoSansTC-Bold.ttf", fontBold);
-      // pdf.addFont("NotoSansTC-Bold.ttf", "NotoSansTC-Bold", "normal");
+      if (!fontRegular || !fontBold) {
+        throw new Error("字體載入失敗，字體資料為空");
+      }
 
-      pdf.setFont("NotoSansTC-Bold");
+      // 加入字體
+      pdf.addFileToVFS("NotoSansTC-Regular.ttf", fontRegular);
+      pdf.addFont("NotoSansTC-Regular.ttf", "NotoSansTC", "normal");
+      pdf.addFileToVFS("NotoSansTC-Bold.ttf", fontBold);
+      pdf.addFont("NotoSansTC-Bold.ttf", "NotoSansTC-Bold", "bold");
+
+      pdf.setFont("NotoSansTC-Bold", "bold");
       // 縮小表頭間距
       let headerStartY = 15;
       pdf.setFontSize(18);
       pdf.text("臺北市私立長藤托嬰中心", 70, headerStartY);
 
-      pdf.setFont("NotoSansTC");
+      pdf.setFont("NotoSansTC", "normal");
       pdf.setFontSize(12);
       pdf.text(`單元名稱: ${this.unitName}`, 10, headerStartY + 15);
       let monthStartX = 70;
@@ -170,7 +181,7 @@ export default {
       pdf.rect(startX, startY, columnWidths.reduce((acc, w) => acc + w, 0), 6 + rowHeight * rowCount);
 
       // 繪製表頭
-      pdf.setFont("NotoSansTC-Bold");
+      pdf.setFont("NotoSansTC-Bold", "bold");
       pdf.setFontSize(12);
       let domainCenterX = startX + columnWidths[0] / 2;
       let photoCenterX = startX + columnWidths[0] + columnWidths[1] / 2;
@@ -188,7 +199,7 @@ export default {
         pdf.line(startX, yPos, startX + tableWidth, yPos);
 
         // 插入發展領域名稱
-        pdf.setFont("NotoSansTC-Bold");
+        pdf.setFont("NotoSansTC-Bold", "bold");
         pdf.setFontSize(12);
         let domainCenterX = startX + columnWidths[0] / 2;
         let textY = yPos + rowHeight / 2;
@@ -208,7 +219,7 @@ export default {
         // 計算文字的 X 位置 (水平置中)
         let textStartX = startX + columnWidths[0] + columnWidths[1] + columnWidths[2] / 2;
 
-        pdf.setFont("NotoSansTC");
+        pdf.setFont("NotoSansTC", "normal");
         pdf.setFontSize(10);
         pdf.text(wrappedText, textStartX, textStartY, {
           align: "center",

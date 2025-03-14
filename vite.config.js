@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import path from 'path';
 import { visualizer } from 'rollup-plugin-visualizer'
 
 export default defineConfig({
@@ -8,9 +9,13 @@ export default defineConfig({
     vue(),
     visualizer({ open: true })
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
   build: {
     rollupOptions: {
-      external: ['html2canvas', 'dompurify', 'canvg'],
       output: {
         manualChunks: {
           'vendor': ['vue'],
