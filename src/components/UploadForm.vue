@@ -29,14 +29,17 @@
           <input type="file" accept="image/jpeg, image/png" @change="handleFileUpload($event, index)">
         </label>
 
-        <div v-if="domain.image" class="image-preview">
-          <img :src="domain.image" alt="上傳圖片" width="200px">
-          <button @click="removeImage(index)" class="delete-btn">
-            🗑️
-          </button>
+        <div v-if="(domain.images || []).length" class="image-preview">
+          <div v-for="(image, imgIndex) in domain.images || []" :key="imgIndex" class="image-wrapper">
+            <img :src="image" alt="上傳圖片" width="200px">
+            <button @click="removeImage(index, imgIndex)" class="delete-btn">
+              🗑️
+            </button>
+          </div>
         </div>
 
-        <textarea v-model="domain.description" @input="checkDescriptionLength" @blur="validateDescription" placeholder="請輸入發展領域說明" maxlength="60" rows="3"></textarea>
+        <textarea v-model="domain.description" @input="checkDescriptionLength(domain)" @blur="validateDescription(domain)" placeholder="請輸入發展領域說明" maxlength="60" rows="3"></textarea>
+
         <small v-if="domain.description.length >= 60" class="error">⚠️ 最多只能輸入 60 個字！</small>
       </div>
     </section>
@@ -60,26 +63,27 @@ export default {
       recorder: "",
       className: "",
       domains: [
-        { name: "身體動作", image: null, description: "" },
-        { name: "社會情緒", image: null, description: "" },
-        { name: "語言溝通", image: null, description: "" },
-        { name: "認知探索", image: null, description: "" },
-        { name: "生活自理", image: null, description: "" },
-        { name: "教玩具操作 / 文化藝術", image: null, description: "" }
+        { name: "身體動作", image: [], description: "" },
+        { name: "社會情緒", image: [], description: "" },
+        { name: "語言溝通", image: [], description: "" },
+        { name: "認知探索", image: [], description: "" },
+        { name: "生活自理", image: [], description: "" },
+        { name: "教玩具操作 / 文化藝術", image: [], description: "" }
       ]
     };
   },
   methods: {
-    checkDescriptionLength() {
-      if (this.description.length > 60) {
+    checkDescriptionLength(domain) {
+      if (domain.description.length > 60) {
         alert("說明欄位最多 60 個字！");
-        this.description = this.description.substring(0, 60);
+        domain.description = domain.description.substring(0, 60);
       }
     },
-    validateDescription() {
-      if (this.description.length > 60) {
+    validateDescription(domain) {
+      if (!domain || !domain.description) return;
+
+      if (domain.description.length > 60) {
         alert("說明欄位最多 60 個字！");
-        return;
       }
     },
     handleFileUpload(event, domainIndex) {
@@ -93,19 +97,23 @@ export default {
         return;
       }
 
-      if (this.domains[domainIndex].image) {
-        alert("每個發展領域只能上傳 1 張圖片，請先移除後再上傳");
+      if (!this.domains[domainIndex].images) {
+        this.domains[domainIndex].images = [];
+      }
+
+      if (this.domains[domainIndex].images.length >= 2) {
+        alert("最多只能上傳 2 張圖片");
         return;
       }
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        this.domains[domainIndex].image = e.target.result;
+        this.domains[domainIndex].images.push(e.target.result);
       };
       reader.readAsDataURL(file);
     },
-    removeImage(domainIndex) {
-      this.domains[domainIndex].image = null;
+    removeImage(domainIndex, imgIndex) {
+      this.domains[domainIndex].images.splice(imgIndex, 1);
     },
     async generatePDF() {
       await nextTick();
@@ -146,7 +154,8 @@ export default {
 
       // 繪製表格框線
       pdf.setLineWidth(0.5);
-      pdf.rect(startX, startY, tableWidth, headHeight + rowHeight * rowCount);
+      // pdf.rect(startX, startY, tableWidth, headHeight + rowHeight * rowCount);
+      pdf.rect(startX, startY, columnWidths.reduce((acc, w) => acc + w, 0), 6 + rowHeight * rowCount);
 
       // 繪製表頭
       pdf.setFont("NotoSansTC-Bold");
@@ -202,52 +211,85 @@ export default {
         pdf.line(xOffset, startY, xOffset, startY + headHeight + rowHeight * rowCount);
       }
 
-      // 插入圖片
       for (let i = 0; i < rowCount; i++) {
         let yPos = startY + headHeight + i * rowHeight;
-        let imgMaxWidth = columnWidths[1] - 6;
+        let imgMaxWidth = columnWidths[1] / 2 - 3;
         let imgMaxHeight = rowHeight - 6;
-        let imgWidth, imgHeight;
+        let imgXLeft = startX + columnWidths[0] + 2;
+        let imgXRight = imgXLeft + imgMaxWidth + 1.5;
 
-        if (this.domains[i].image) {
-          let img = this.domains[i].image;
+        let images = this.domains[i].images || [];
 
-          let format = "";
-          if (img.startsWith("data:image/png")) format = "PNG";
-          if (img.startsWith("data:image/jpg") || img.startsWith("data:image/jpeg")) format = "JPEG";
+        for (let imgIndex = 0; imgIndex < images.length; imgIndex++) {
+          let img = images[imgIndex];
+          let format = img.includes("image/png") ? "PNG" : "JPEG";
 
-          if (!format) {
-            alert("圖片格式不正確，僅支援 JPG、JPEG、PNG 格式的圖片");
-            return;
-          }
-
-          console.log("圖片格式:", format);
-
-          // 確保圖片等比例縮放
           let imageObj = new Image();
           imageObj.src = img;
           await new Promise((resolve) => {
             imageObj.onload = () => {
               let aspectRatio = imageObj.width / imageObj.height;
-              if (imgMaxWidth / aspectRatio > imgMaxHeight) {
+              let imgWidth = imgMaxWidth;
+              let imgHeight = imgMaxWidth / aspectRatio;
+              if (imgHeight > imgMaxHeight) {
                 imgHeight = imgMaxHeight;
                 imgWidth = imgMaxHeight * aspectRatio;
-              } else {
-                imgWidth = imgMaxWidth;
-                imgHeight = imgMaxWidth / aspectRatio;
               }
+              let imgY = yPos + (rowHeight - imgHeight) / 2;
+              let imgX = imgIndex === 0 ? imgXLeft : imgXRight;
+              pdf.addImage(img, format, imgX, imgY, imgWidth, imgHeight);
               resolve();
             };
           });
-
-          console.log("圖片尺寸:", { imgWidth, imgHeight });
-
-          let imgX = startX + columnWidths[0] + (columnWidths[1] - imgWidth) / 2;
-          let imgY = yPos + (rowHeight - imgHeight) / 2;
-
-          pdf.addImage(img, format, imgX, imgY, imgWidth, imgHeight);
         }
       }
+
+      // 插入圖片
+      // for (let i = 0; i < rowCount; i++) {
+      //   let yPos = startY + headHeight + i * rowHeight;
+      //   let imgMaxWidth = columnWidths[1] - 6;
+      //   let imgMaxHeight = rowHeight - 6;
+      //   let imgWidth, imgHeight;
+
+      //   if (this.domains[i].image) {
+      //     let img = this.domains[i].image;
+
+      //     let format = "";
+      //     if (img.startsWith("data:image/png")) format = "PNG";
+      //     if (img.startsWith("data:image/jpg") || img.startsWith("data:image/jpeg")) format = "JPEG";
+
+      //     if (!format) {
+      //       alert("圖片格式不正確，僅支援 JPG、JPEG、PNG 格式的圖片");
+      //       return;
+      //     }
+
+      //     console.log("圖片格式:", format);
+
+      //     // 確保圖片等比例縮放
+      //     let imageObj = new Image();
+      //     imageObj.src = img;
+      //     await new Promise((resolve) => {
+      //       imageObj.onload = () => {
+      //         let aspectRatio = imageObj.width / imageObj.height;
+      //         if (imgMaxWidth / aspectRatio > imgMaxHeight) {
+      //           imgHeight = imgMaxHeight;
+      //           imgWidth = imgMaxHeight * aspectRatio;
+      //         } else {
+      //           imgWidth = imgMaxWidth;
+      //           imgHeight = imgMaxWidth / aspectRatio;
+      //         }
+      //         resolve();
+      //       };
+      //     });
+
+      //     console.log("圖片尺寸:", { imgWidth, imgHeight });
+
+      //     let imgX = startX + columnWidths[0] + (columnWidths[1] - imgWidth) / 2;
+      //     let imgY = yPos + (rowHeight - imgHeight) / 2;
+
+      //     pdf.addImage(img, format, imgX, imgY, imgWidth, imgHeight);
+      //   }
+      // }
       // 設定 PDF 檔名
       let filename = `發展領域記錄表-${this.month}-${this.recorder}.pdf`;
       pdf.save(filename);
@@ -255,7 +297,3 @@ export default {
   }
 };
 </script>
-
-<style scoped>
-
-</style>
