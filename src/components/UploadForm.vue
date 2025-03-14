@@ -26,7 +26,7 @@
       <div v-for="(domain, index) in domains" :key="index" class="domain-card">
         <h3>{{ domain.name }}</h3>
         <label class="file-label">
-          <input type="file" accept="image/jpeg, image/png" @change="handleFileUpload($event, index)">
+          <input type="file" accept="image/jpeg, image/png" @change="handleFileUpload($event, index)" multiple>
         </label>
 
         <div v-if="(domain.images || []).length" class="image-preview">
@@ -87,30 +87,37 @@ export default {
       }
     },
     handleFileUpload(event, domainIndex) {
-      const file = event.target.files[0];
-      if (!file) return;
+      const files = Array.from(event.target.files);
+      if (!files.length) return;
 
       const allowedFormats = ["image/jpeg", "image/png", "image/jpg"];
-      if (!allowedFormats.includes(file.type)) {
-        alert("僅支援 JPG、JPEG、PNG 格式的圖片");
-        event.target.value = "";
-        return;
-      }
 
       if (!this.domains[domainIndex].images) {
         this.domains[domainIndex].images = [];
       }
 
-      if (this.domains[domainIndex].images.length >= 2) {
+      let currentImages = this.domains[domainIndex].images.length;
+      let remainingSlots = 2 - currentImages;
+
+      if (currentImages >= 2) {
         alert("最多只能上傳 2 張圖片");
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        this.domains[domainIndex].images.push(e.target.result);
-      };
-      reader.readAsDataURL(file);
+      files.slice(0, remainingSlots).forEach((file) => {
+        if (!allowedFormats.includes(file.type)) {
+          alert("僅支援 JPG、JPEG、PNG 格式的圖片");
+          event.target.value = "";
+          return;
+        };
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          this.domains[domainIndex].images.push(e.target.result);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      event.target.value = null;
     },
     removeImage(domainIndex, imgIndex) {
       this.domains[domainIndex].images.splice(imgIndex, 1);
