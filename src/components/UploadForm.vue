@@ -52,6 +52,12 @@
       </div>
     </section>
 
+    <!-- 遮蓋式彈出視窗 -->
+    <div v-if="isGeneratingPDF || pdfGenerated" class="overlay">
+      <div class="popup">
+        <p>{{ popupMessage }}</p>
+      </div>
+    </div>
     <button class="pdf-button" @click="generatePDF">📄 產生 PDF</button>
   </div>
 </template>
@@ -59,7 +65,6 @@
 <script>
 import { nextTick } from "vue";
 import { jsPDF } from "jspdf";
-import { EXIF } from "exif-js";
 import { piexif } from 'piexifjs';
 
 export default {
@@ -76,7 +81,10 @@ export default {
         { name: "認知探索", images: [], description: "", rotation: [] },
         { name: "生活自理", images: [], description: "", rotation: [] },
         { name: "教玩具操作 / 文化藝術", images: [], description: "", rotation: [] }
-      ]
+      ],
+      isGeneratingPDF: false,
+      pdfGenerated: false,
+      popupMessage: "產生PDF中，請稍待片刻..."
     };
   },
   methods: {
@@ -224,6 +232,10 @@ export default {
       return btoa(binaryString);
     },
     async generatePDF() {
+      this.isGeneratingPDF = true;
+      this.pdfGenerated = false;
+      this.popupMessage = "產生PDF中，請稍待片刻...";
+
       await nextTick();
       const pdf = new jsPDF("p", "mm", "a4");
 
@@ -372,6 +384,25 @@ export default {
       // 設定 PDF 檔名
       let filename = `發展領域記錄表-${this.month}-${this.recorder}.pdf`;
       pdf.save(filename);
+
+      this.isGeneratingPDF = false;
+      this.pdfGenerated = true;
+      this.popupMessage = "PDF已完成，請自行下載。";
+
+      // 清空圖片和文字
+      this.unitName = "";
+      this.month = "";
+      this.recorder = "";
+      this.className = "";
+      this.domains.forEach(domain => {
+        domain.images = [];
+        domain.description = "";
+        domain.rotation = [];
+      });
+
+      setTimeout(() => {
+        this.pdfGenerated = false;
+      }, 3000);
     }
   }
 };
