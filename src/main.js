@@ -1,5 +1,8 @@
 import { createApp } from 'vue'
 import './style.css'
 import App from './App.vue'
+import VConsole from 'vconsole';
 
-createApp(App).mount('#app')
+const vConsole = new VConsole();
+
+createApp(App).use(vConsole).mount('#app')

@@ -25,6 +25,9 @@ export default defineConfig({
     },
     chunkSizeWarningLimit: 500,
     sourcemap: false
+  },
+  server: {
+    host: '0.0.0.0'
   }
 })
 

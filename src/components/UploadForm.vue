@@ -23,18 +23,25 @@
 
     <section class="card">
       <h2>Step 2: 上傳六大發展領域資料</h2>
-      <div v-for="(domain, index) in domains" :key="index" class="domain-card">
+      <div v-for="(domain, domainIndex) in domains" :key="domainIndex" class="domain-card">
         <h3>{{ domain.name }}</h3>
         <label class="file-label">
-          <input type="file" accept="image/jpeg, image/png" @change="handleFileUpload($event, index)" multiple>
+          <input type="file" accept="image/jpeg, image/png" @change="handleFileUpload($event, domainIndex)" multiple>
         </label>
 
         <div v-if="(domain.images || []).length" class="image-preview">
-          <div v-for="(image, imgIndex) in domain.images || []" :key="imgIndex" class="image-wrapper">
-            <img :src="image" alt="上傳圖片" width="200px">
-            <button @click="removeImage(index, imgIndex)" class="delete-btn">
-              🗑️
-            </button>
+          <div v-for="(image, imgIndex) in domain.images || []" :key="imgIndex" class="image-container">
+            <div class="image-wrapper">
+              <img :src="image" alt="上傳圖片" width="200px" :style="{ transform: `rotate(${domain.rotation[imgIndex]}deg)` }">
+            </div>
+            <div class="image-actions">
+              <button @click="rotateImage(domainIndex, imgIndex)" class="rotate-btn">
+                <img src="@/assets/image-rotate.svg" alt="旋轉" width="26" height="26">
+              </button>
+              <button @click="removeImage(domainIndex, imgIndex)" class="delete-btn">
+                <img src="@/assets/trash-can.svg" alt="刪除" width="30" height="30">
+              </button>
+            </div>
           </div>
         </div>
         <div class="alert alert-danger">最多只能上傳 2 張圖片</div>
@@ -53,6 +60,7 @@
 import { nextTick } from "vue";
 import { jsPDF } from "jspdf";
 import { EXIF } from "exif-js";
+import { piexif } from 'piexifjs';
 
 export default {
   data() {
@@ -62,12 +70,12 @@ export default {
       recorder: "",
       className: "",
       domains: [
-        { name: "身體動作", image: [], description: "" },
-        { name: "社會情緒", image: [], description: "" },
-        { name: "語言溝通", image: [], description: "" },
-        { name: "認知探索", image: [], description: "" },
-        { name: "生活自理", image: [], description: "" },
-        { name: "教玩具操作 / 文化藝術", image: [], description: "" }
+        { name: "身體動作", images: [], description: "", rotation: [] },
+        { name: "社會情緒", images: [], description: "", rotation: [] },
+        { name: "語言溝通", images: [], description: "", rotation: [] },
+        { name: "認知探索", images: [], description: "", rotation: [] },
+        { name: "生活自理", images: [], description: "", rotation: [] },
+        { name: "教玩具操作 / 文化藝術", images: [], description: "", rotation: [] }
       ]
     };
   },
@@ -115,53 +123,59 @@ export default {
           img.src = e.target.result;
           img.onload = () => {
             try {
-              EXIF.getData(img, () => {
-                const orientation = EXIF.getTag(img, "Orientation") || 1;
-                const canvas = document.createElement("canvas");
-                const ctx = canvas.getContext("2d");
+              const imgData = e.target.result;
+              const exifObj = piexif.load(imgData);
+              const orientation = exifObj['0th'][piexif.ImageIFD.Orientation] || 1;
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
 
-                canvas.width = img.width;
-                canvas.height = img.height;
+              canvas.width = img.width;
+              canvas.height = img.height;
 
-                switch (orientation) {
-                  case 2:
-                    ctx.transform(-1, 0, 0, 1, img.width, 0);
-                    break;
-                  case 3:
-                    ctx.transform(-1, 0, 0, -1, img.width, img.height);
-                    break;
-                  case 4:
-                    ctx.transform(1, 0, 0, -1, 0, img.height);
-                    break;
-                  case 5:
-                    canvas.width = img.height;
-                    canvas.height = img.width;
-                    ctx.transform(0, 1, 1, 0, 0, 0);
-                    break;
-                  case 6:
-                    canvas.width = img.height;
-                    canvas.height = img.width;
-                    ctx.transform(0, 1, -1, 0, img.height, 0);
-                    break;
-                  case 7:
-                    canvas.width = img.height;
-                    canvas.height = img.width;
-                    ctx.transform(0, -1, -1, 0, img.height, img.width);
-                    break;
-                  case 8:
-                    canvas.width = img.height;
-                    canvas.height = img.width;
-                    ctx.transform(0, -1, 1, 0, 0, img.width);
-                    break;
-                  default:
-                    ctx.transform(1, 0, 0, 1, 0, 0);
-                }
+              // 設置畫布尺寸和方向
+              switch (orientation) {
+                case 2:
+                  ctx.transform(-1, 0, 0, 1, img.width, 0);
+                  break;
+                case 3:
+                  ctx.transform(-1, 0, 0, -1, img.width, img.height);
+                  break;
+                case 4:
+                  ctx.transform(1, 0, 0, -1, 0, img.height);
+                  break;
+                case 5:
+                  canvas.width = img.height;
+                  canvas.height = img.width;
+                  ctx.transform(0, 1, 1, 0, 0, 0);
+                  break;
+                case 6:
+                  canvas.width = img.height;
+                  canvas.height = img.width;
+                  ctx.transform(0, 1, -1, 0, img.height, 0);
+                  break;
+                case 7:
+                  canvas.width = img.height;
+                  canvas.height = img.width;
+                  ctx.transform(0, -1, -1, 0, img.height, img.width);
+                  break;
+                case 8:
+                  canvas.width = img.height;
+                  canvas.height = img.width;
+                  ctx.transform(0, -1, 1, 0, 0, img.width);
+                  break;
+                default:
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  ctx.transform(1, 0, 0, 1, 0, 0);
+              }
 
-                ctx.drawImage(img, 0, 0, img.width, img.height);
+              ctx.drawImage(img, 0, 0, img.width, img.height);
 
-                const rotatedDataUrl = canvas.toDataURL(file.type);
-                this.domains[domainIndex].images.push(rotatedDataUrl);
-              })
+              canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                this.domains[domainIndex].images.push(url);
+                this.domains[domainIndex].rotation.push(0);
+              }, file.type);
             } catch (error) {
               console.error("Error reading EXIF data:", error);
               this.domains[domainIndex].images.push(img.src);
@@ -173,8 +187,29 @@ export default {
 
       event.target.value = null;
     },
+    rotateImage(domainIndex, imgIndex) {
+      this.domains[domainIndex].rotation[imgIndex] = (this.domains[domainIndex].rotation[imgIndex] + 90) % 360;
+    },
     removeImage(domainIndex, imgIndex) {
       this.domains[domainIndex].images.splice(imgIndex, 1);
+    },
+    getRotatedImage(image, angle) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      if (angle === 90 || angle === 270) {
+        canvas.width = image.height;
+        canvas.height = image.width;
+      } else {
+        canvas.width = image.width;
+        canvas.height = image.height;
+      }
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((angle * Math.PI) / 180);
+      ctx.drawImage(image, -image.width / 2, -image.height / 2);
+
+      return canvas.toDataURL();
     },
     async loadFont(filename) {
       const BASE_URL = import.meta.env.BASE_URL || "/";
@@ -234,7 +269,6 @@ export default {
 
       // 繪製表格框線
       pdf.setLineWidth(0.5);
-      // pdf.rect(startX, startY, tableWidth, headHeight + rowHeight * rowCount);
       pdf.rect(startX, startY, columnWidths.reduce((acc, w) => acc + w, 0), 6 + rowHeight * rowCount);
 
       // 繪製表頭
@@ -308,16 +342,28 @@ export default {
           imageObj.src = img;
           await new Promise((resolve) => {
             imageObj.onload = () => {
-              let aspectRatio = imageObj.width / imageObj.height;
-              let imgWidth = imgMaxWidth;
-              let imgHeight = imgMaxWidth / aspectRatio;
-              if (imgHeight > imgMaxHeight) {
-                imgHeight = imgMaxHeight;
-                imgWidth = imgMaxHeight * aspectRatio;
+              let rotatedImage = this.getRotatedImage(imageObj, this.domains[i].rotation[imgIndex]);
+
+              let imgWidth = imageObj.width;
+              let imgHeight = imageObj.height;
+
+              if (this.domains[i].rotation[imgIndex] === 90 || this.domains[i].rotation[imgIndex] === 270) {
+                [imgWidth, imgHeight] = [imgHeight, imgWidth];
               }
+
+              if (imgWidth > imgMaxWidth) {
+                imgHeight *= imgMaxWidth / imgWidth;
+                imgWidth = imgMaxWidth;
+              }
+              if (imgHeight > imgMaxHeight) {
+                imgWidth *= imgMaxHeight / imgHeight;
+                imgHeight = imgMaxHeight;
+              }
+
               let imgY = yPos + (rowHeight - imgHeight) / 2;
               let imgX = imgIndex === 0 ? imgXLeft : imgXRight;
-              pdf.addImage(img, format, imgX, imgY, imgWidth, imgHeight);
+
+              pdf.addImage(rotatedImage, format, imgX, imgY, imgWidth, imgHeight);
               resolve();
             };
           });
