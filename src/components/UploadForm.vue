@@ -125,75 +125,87 @@ export default {
           event.target.value = "";
           return;
         };
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.src = e.target.result;
-          img.onload = () => {
-            try {
-              const imgData = e.target.result;
-              const exifObj = piexif.load(imgData);
-              const orientation = exifObj['0th'][piexif.ImageIFD.Orientation] || 1;
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-
-              canvas.width = img.width;
-              canvas.height = img.height;
-
-              // 設置畫布尺寸和方向
-              switch (orientation) {
-                case 2:
-                  ctx.transform(-1, 0, 0, 1, img.width, 0);
-                  break;
-                case 3:
-                  ctx.transform(-1, 0, 0, -1, img.width, img.height);
-                  break;
-                case 4:
-                  ctx.transform(1, 0, 0, -1, 0, img.height);
-                  break;
-                case 5:
-                  canvas.width = img.height;
-                  canvas.height = img.width;
-                  ctx.transform(0, 1, 1, 0, 0, 0);
-                  break;
-                case 6:
-                  canvas.width = img.height;
-                  canvas.height = img.width;
-                  ctx.transform(0, 1, -1, 0, img.height, 0);
-                  break;
-                case 7:
-                  canvas.width = img.height;
-                  canvas.height = img.width;
-                  ctx.transform(0, -1, -1, 0, img.height, img.width);
-                  break;
-                case 8:
-                  canvas.width = img.height;
-                  canvas.height = img.width;
-                  ctx.transform(0, -1, 1, 0, 0, img.width);
-                  break;
-                default:
-                  canvas.width = img.width;
-                  canvas.height = img.height;
-                  ctx.transform(1, 0, 0, 1, 0, 0);
-              }
-
-              ctx.drawImage(img, 0, 0, img.width, img.height);
-
-              canvas.toBlob((blob) => {
-                const url = URL.createObjectURL(blob);
-                this.domains[domainIndex].images.push(url);
-                this.domains[domainIndex].rotation.push(0);
-              }, file.type);
-            } catch (error) {
-              console.error("Error reading EXIF data:", error);
-              this.domains[domainIndex].images.push(img.src);
-            }
-          };
-        };
-        reader.readAsDataURL(file);
+        this.processImage(file, domainIndex);
       });
-
       event.target.value = null;
+    },
+    async processImage(file, domainIndex) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const imgData = e.target.result;
+            const exifObj = piexif.load(imgData);
+            const orientation = exifObj['0th'][piexif.ImageIFD.Orientation] || 1;
+
+            const maxWidth = 800;
+            const maxHeight = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > maxWidth) {
+                height *= maxWidth / width;
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width *= maxHeight / height;
+                height = maxHeight;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // 設置畫布尺寸和方向
+            this.setCanvasOrientation(ctx, orientation, width, height);
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob((blob) => {
+              const url = URL.createObjectURL(blob);
+              this.domains[domainIndex].images.push(url);
+              this.domains[domainIndex].rotation.push(0);
+            }, 'image/jpeg', 0.7);
+          } catch (error) {
+            console.error("Error reading EXIF data:", error);
+            this.domains[domainIndex].images.push(img.src);
+          }
+        };
+      };
+      reader.readAsDataURL(file);
+    },
+    setCanvasOrientation(ctx, orientation, width, height) {
+      switch (orientation) {
+        case 2:
+          ctx.transform(-1, 0, 0, 1, width, 0);
+          break;
+        case 3:
+          ctx.transform(-1, 0, 0, -1, width, height);
+          break;
+        case 4:
+          ctx.transform(1, 0, 0, -1, 0, height);
+          break;
+        case 5:
+          ctx.transform(0, 1, 1, 0, 0, 0);
+          break;
+        case 6:
+          ctx.transform(0, 1, -1, 0, height, 0);
+          break;
+        case 7:
+          ctx.transform(0, -1, -1, 0, height, width);
+          break;
+        case 8:
+          ctx.transform(0, -1, 1, 0, 0, width);
+          break;
+        default:
+          ctx.transform(1, 0, 0, 1, 0, 0);
+      }
     },
     rotateImage(domainIndex, imgIndex) {
       this.domains[domainIndex].rotation[imgIndex] = (this.domains[domainIndex].rotation[imgIndex] + 90) % 360;
@@ -375,14 +387,14 @@ export default {
               let imgY = yPos + (rowHeight - imgHeight) / 2;
               let imgX = imgIndex === 0 ? imgXLeft : imgXRight;
 
-              pdf.addImage(rotatedImage, format, imgX, imgY, imgWidth, imgHeight);
+              pdf.addImage(rotatedImage, format, imgX, imgY, imgWidth, imgHeight, undefined, 'FAST');
               resolve();
             };
           });
         }
       }
       // 設定 PDF 檔名
-      let filename = `發展領域記錄表-${this.month}-${this.recorder}.pdf`;
+      let filename = `發展領域記錄表-${this.month}-${this.className}-${this.recorder}.pdf`;
       pdf.save(filename);
 
       this.isGeneratingPDF = false;
