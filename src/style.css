@@ -161,6 +161,16 @@ textarea {
   background-color: lightgray;
 }
 
+.rotate-btn img {
+  width: 26px;
+  height: 26px;
+}
+
+.delete-btn img {
+  width: 30px;
+  height: 30px;
+}
+
 .pdf-button {
   display: block;
   width: 100%;
