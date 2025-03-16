@@ -1,7 +1,10 @@
-import { nextTick } from "vue";
+import { nextTick, computed } from "vue";
 import { jsPDF } from "jspdf";
+import { useDomainStore } from "@/stores/useDomainStore";
 
-export function usePDFGenerator(unitName, month, recorder, className, domains, isGeneratingPDF, pdfGenerated, popupMessage) {
+export function usePDFGenerator(unitName, month, recorder, className, isGeneratingPDF, pdfGenerated, popupMessage) {
+  const domainStore = useDomainStore();
+  const domains = computed(() => domainStore.domains);
   const loadFont = async (filename) => {
     const BASE_URL = import.meta.env.BASE_URL || "/";
     const url = `${BASE_URL}fonts/${filename}`;
@@ -42,7 +45,8 @@ export function usePDFGenerator(unitName, month, recorder, className, domains, i
     ctx.rotate((angle * Math.PI) / 180);
     ctx.drawImage(image, -image.width / 2, -image.height / 2);
 
-    return canvas.toDataURL();
+    const result = canvas.toDataURL();
+    return result;
   };
 
   let headerStartY = 15;
@@ -67,7 +71,7 @@ export function usePDFGenerator(unitName, month, recorder, className, domains, i
     pdf.text(`記錄者: ${recorder.value}`, 150, headerStartY + 15);
   };
 
-  const drawTable = (pdf, domains) => {
+  const drawTable = (pdf) => {
     pdf.setLineWidth(0.5);
     pdf.rect(startX, startY, tableWidth, headHeight + rowHeight * rowCount);
     let domainCenterX = startX + columnWidths[0] / 2;
@@ -91,11 +95,10 @@ export function usePDFGenerator(unitName, month, recorder, className, domains, i
 
       let descriptionWidth = columnWidths[2] - 7;
       let wrappedText = pdf.splitTextToSize(domains.value[i].description, descriptionWidth);
-      let lineHeight = 7.5;
-      let totalTextHeight = wrappedText.length * lineHeight;
       let descriptionStartX = startX + columnWidths[0] + columnWidths[1] + 3;
-      let descriptionCenterY = yPos + (rowHeight - totalTextHeight) / 2 + lineHeight / 2;
-      addDescription(pdf, wrappedText, descriptionStartX, descriptionCenterY);
+      let descriptionCenterY = yPos;
+
+      addDescription(pdf, wrappedText, descriptionStartX, descriptionCenterY, descriptionWidth, rowHeight);
     }
 
     let xOffset = startX;
@@ -116,88 +119,93 @@ export function usePDFGenerator(unitName, month, recorder, className, domains, i
   }
 
   // 插入說明
-  const addDescription = (pdf, wrappedText, x, y) => {
+  const addDescription = (pdf, wrappedText, x, y, maxWidth, rowHeight) => {
     pdf.setFont("NotoSansTC", "normal");
     pdf.setFontSize(12);
-    pdf.text(wrappedText, x, y, {
-      align: "left",
-      baseline: "top",
+    let lineHeight = 6;
+    let totalTextHeight = wrappedText.length * lineHeight;
+
+    let centeredY = y + (rowHeight - totalTextHeight) / 2 + lineHeight / 2;
+
+    wrappedText.forEach((line, index) => {
+        pdf.text(line, x + maxWidth / 2, centeredY + index * lineHeight, {
+            align: "center",
+            baseline: "middle"
+        });
     });
   }
 
   // 處理並插入照片
-  const processImages = async (pdf, domains, startX, startY, rowHeight, columnWidths) => {
-    console.log(domains.value[0].images);
+  const processImages = async (pdf, startX, startY, rowHeight, columnWidths) => {
     const rowCount = domains.value.length;
-    for (let i = 0; i < rowCount; i++) {
-      let yPos = startY + headHeight + i * rowHeight;
-      let imgMaxWidth = columnWidths[1] / 2 - 3;
-      let imgMaxHeight = rowHeight - 6;
-      let imgXLeft = startX + columnWidths[0] + 2;
-      let imgXRight = imgXLeft + imgMaxWidth + 1.5;
 
-      let images = domains.value[i].images || [];
+    for (let i = 0; i < rowCount; i++) {
+      if (!domains.value[i] || !Array.isArray(domains.value[i].rotation)) {
+        console.error("`domains.value[i]` 或 `rotation` 無效！", { domain: domains.value[i], imgIndex });
+        return;
+      }
+
+      let yPos = startY + headHeight + i * rowHeight;
+      let imgMaxWidth = (columnWidths[1] - 4) / 2;
+      let imgMaxHeight = rowHeight - 6;
+
+      let photoColumnCenterX = startX + columnWidths[0] + columnWidths[1] / 2;
+      let imgXLeft = photoColumnCenterX - imgMaxWidth - 1;
+      let imgXRight = photoColumnCenterX + 1;
+
+      let images = domains.value[i]?.images || [];
 
       for (let imgIndex = 0; imgIndex < images.length; imgIndex++) {
         let img = images[imgIndex];
+        if (!img) continue;
         let format = img.includes("image/png") ? "PNG" : "JPEG";
 
-        // let imageObj = new Image();
-        // imageObj.src = img;
+        let imageObj = new Image();
+        imageObj.src = img;
         await new Promise((resolve) => {
-          fetch(img)
-            .then(response => response.blob())
-            .then(blob => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                const base64data = reader.result;
-                const imageObj = new Image();
-                imageObj.src = base64data;
+          imageObj.onload = () => {
+            let rotatedImage = getRotatedImage(imageObj, domains.value[i].rotation[imgIndex]);
 
-                console.log(imageObj);
-                imageObj.onload = () => {
-                  let imgWidth = imageObj.width;
-                  let imgHeight = imageObj.height;
+            let imgWidth = imageObj.width || 100;
+            let imgHeight = imageObj.height || 100;
 
-                  let rotatedImage = getRotatedImage(imageObj, domains.value[i].rotation[imgIndex]);
+            if (domains.value[i].rotation[imgIndex] === 90 || domains.value[i].rotation[imgIndex] === 270) {
+              [imgWidth, imgHeight] = [imgHeight, imgWidth];
+            }
 
-                  if (domains.value[i].rotation[imgIndex] === 90 || domains.value[i].rotation[imgIndex] === 270) {
-                    [imgWidth, imgHeight] = [imgHeight, imgWidth];
-                  }
+            if (imgWidth > imgMaxWidth) {
+              imgHeight *= imgMaxWidth / imgWidth;
+              imgWidth = imgMaxWidth;
+            }
+            if (imgHeight > imgMaxHeight) {
+              imgWidth *= imgMaxHeight / imgHeight;
+              imgHeight = imgMaxHeight;
+            }
 
-                  if (imgWidth > imgMaxWidth) {
-                    imgHeight *= imgMaxWidth / imgWidth;
-                    imgWidth = imgMaxWidth;
-                  }
-                  if (imgHeight > imgMaxHeight) {
-                    imgWidth *= imgMaxHeight / imgHeight;
-                    imgHeight = imgMaxHeight;
-                  }
+            let imgY = yPos + (rowHeight - imgHeight) / 2;
+            let imgX = imgIndex === 0 ? imgXLeft : imgXRight;
 
-                  let imgY = yPos + (rowHeight - imgHeight) / 2;
-                  let imgX = imgIndex === 0 ? imgXLeft : imgXRight;
-                  // let imgX = 0;
-                  pdf.addImage(rotatedImage, format, imgX, imgY, imgWidth, imgHeight, undefined, 'FAST');
-                  resolve();
-                };
-              };
-              reader.readAsDataURL(blob);
-            })
-            .catch(error => {
-              console.error('圖片載入失敗', img);
-              resolve();
-            });
+            pdf.addImage(rotatedImage, format, imgX, imgY, imgWidth, imgHeight, undefined, 'FAST');
+            resolve();
+          };
         });
       }
     }
   }
 
   const generatePDF = async () => {
+    if (!domains.value || domains.value.length === 0) {
+      console.error("domains 尚未初始化，無法產生 PDF");
+      alert("請先上傳圖片，再產生 PDF！");
+      return;
+    }
+
     isGeneratingPDF.value = true;
     pdfGenerated.value = false;
     popupMessage.value = "產生PDF中，請稍待片刻...";
 
     await nextTick();
+
     const pdf = new jsPDF("p", "mm", "a4");
 
     const { fontRegular, fontBold } = await loadFonts();
@@ -209,137 +217,10 @@ export function usePDFGenerator(unitName, month, recorder, className, domains, i
     pdf.addFont("NotoSansTC-Bold.ttf", "NotoSansTC-Bold", "bold");
 
     drawHeader(pdf, unitName, month, className, recorder);
-    drawTable(pdf, domains);
-    processImages(pdf, domains, startX, startY, rowHeight, columnWidths);
+    drawTable(pdf, domains.value);
 
-    // pdf.setFont("NotoSansTC-Bold", "bold");
-    // // 縮小表頭間距
-    // let headerStartY = 15;
-    // pdf.setFontSize(18);
-    // pdf.text("臺北市私立長藤托嬰中心", 70, headerStartY);
-
-    // pdf.setFont("NotoSansTC", "normal");
-    // pdf.setFontSize(12);
-    // pdf.text(`單元名稱: ${unitName.value}`, 10, headerStartY + 15);
-    // let monthStartX = 70;
-    // let classStartX = 110;
-    // let recorderStartX = 150;
-
-    // pdf.text(`年月: ${month.value}`, monthStartX, headerStartY + 15);
-    // pdf.text(`班級: ${className.value}`, classStartX, headerStartY + 15);
-    // pdf.text(`記錄者: ${recorder.value}`, recorderStartX, headerStartY + 15);
-
-    // // 調整表格間距，減少紅框高度
-    // const startX = 10;
-    // const startY = headerStartY + 20;
-    // const columnWidths = [35, 85, 70];
-    // const headHeight = 6;
-    // const rowHeight = 40;
-    // const tableWidth = columnWidths.reduce((acc, w) => acc + w, 0);
-    // const rowCount = domains.value.length;
-
-    // // 繪製表格框線
-    // pdf.setLineWidth(0.5);
-    // pdf.rect(startX, startY, columnWidths.reduce((acc, w) => acc + w, 0), 6 + rowHeight * rowCount);
-
-    // // 繪製表頭
-    // pdf.setFont("NotoSansTC-Bold", "bold");
-    // pdf.setFontSize(12);
-    // let domainCenterX = startX + columnWidths[0] / 2;
-    // let photoCenterX = startX + columnWidths[0] + columnWidths[1] / 2;
-    // let descriptionCenterX = startX + columnWidths[0] + columnWidths[1] + columnWidths[2] / 2;
-
-    // let headerY = startY + headHeight - 1.5;
-
-    // pdf.text("發展領域", domainCenterX, headerY, { align: "center" });
-    // pdf.text("照片", photoCenterX, headerY, { align: "center" });
-    // pdf.text("說明", descriptionCenterX, headerY, { align: "center" });
-
-    // // 繪製表格列
-    // for (let i = 0; i < rowCount; i++) {
-    //   let yPos = startY + headHeight + i * rowHeight;
-    //   pdf.line(startX, yPos, startX + tableWidth, yPos);
-
-    //   // 插入發展領域名稱
-    //   pdf.setFont("NotoSansTC-Bold", "bold");
-    //   pdf.setFontSize(12);
-    //   let domainCenterX = startX + columnWidths[0] / 2;
-    //   let textY = yPos + rowHeight / 2;
-    //   let domainText = pdf.splitTextToSize(domains.value[i].name, columnWidths[0] - 10);
-    //   pdf.text(domainText, domainCenterX, textY, { align: "center", baseline: "middle" });
-
-    //   // 插入說明
-    //   let descriptionText = domains.value[i].description.substring(0, 80);
-    //   let descriptionWidth = columnWidths[2] - 7;
-    //   let wrappedText = pdf.splitTextToSize(descriptionText, descriptionWidth);
-
-    //   // 計算文字的 Y 位置 (垂直置中)
-    //   let lineHeight = 7.5;
-    //   let totalTextHeight = wrappedText.length * lineHeight;
-    //   let textStartY = yPos + (rowHeight - totalTextHeight) / 2 + lineHeight / 2;
-
-    //   // 計算文字的 X 位置 (置左)
-    //   let textStartX = startX + columnWidths[0] + columnWidths[1] + 3;
-
-    //   pdf.setFont("NotoSansTC", "normal");
-    //   pdf.setFontSize(12);
-    //   pdf.text(wrappedText, textStartX, textStartY, {
-    //     align: "left",
-    //     baseline: "top",
-    //   });
-    // }
-
-    // // 繪製縱向分隔線
-    // let xOffset = startX;
-    // for (let w of columnWidths) {
-    //   xOffset += w;
-    //   pdf.line(xOffset, startY, xOffset, startY + headHeight + rowHeight * rowCount);
-    // }
-
-    // for (let i = 0; i < rowCount; i++) {
-    //   let yPos = startY + headHeight + i * rowHeight;
-    //   let imgMaxWidth = columnWidths[1] / 2 - 3;
-    //   let imgMaxHeight = rowHeight - 6;
-    //   let imgXLeft = startX + columnWidths[0] + 2;
-    //   let imgXRight = imgXLeft + imgMaxWidth + 1.5;
-
-    //   let images = domains.value[i].images || [];
-
-    //   for (let imgIndex = 0; imgIndex < images.length; imgIndex++) {
-    //     let img = images[imgIndex];
-    //     let format = img.includes("image/png") ? "PNG" : "JPEG";
-
-    //     let imageObj = new Image();
-    //     imageObj.src = img;
-    //     await new Promise((resolve) => {
-    //       imageObj.onload = () => {
-    //         let rotatedImage = getRotatedImage(imageObj, domains.value[i].rotation[imgIndex]);
-
-    //         let imgWidth = imageObj.width;
-    //         let imgHeight = imageObj.height;
-
-    //         if (domains.value[i].rotation[imgIndex] === 90 || domains.value[i].rotation[imgIndex] === 270) {
-    //           [imgWidth, imgHeight] = [imgHeight, imgWidth];
-    //         }
-
-    //         if (imgWidth > imgMaxWidth) {
-    //           imgHeight *= imgMaxWidth / imgWidth;
-    //           imgWidth = imgMaxWidth;
-    //         }
-    //         if (imgHeight > imgMaxHeight) {
-    //           imgWidth *= imgMaxHeight / imgHeight;
-    //           imgHeight = imgMaxHeight;
-    //         }
-
-    //         let imgY = yPos + (rowHeight - imgHeight) / 2;
-    //         let imgX = imgIndex === 0 ? imgXLeft : imgXRight;
-
-    //         pdf.addImage(rotatedImage, format, imgX, imgY, imgWidth, imgHeight, undefined, 'FAST');
-    //         resolve();
-    //       };
-    //     });
-    //   }
-    // }
+    const columnWidths = [35, 85, 70];
+    await processImages(pdf, startX, startY, rowHeight, columnWidths);
 
     // 設定 PDF 檔名
     let filename = `發展領域記錄表-${month.value}-${className.value}-${recorder.value}.pdf`;

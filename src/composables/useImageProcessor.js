@@ -1,8 +1,11 @@
-import { piexif } from 'piexifjs';
+import { useDomainStore } from "@/stores/useDomainStore";
+import { computed } from "vue";
+// import { piexif } from 'piexifjs';
 
-export function useImageProcessor(domains) {
+export function useImageProcessor() {
+  const domainStore = useDomainStore();
+  const domains = computed(() => domainStore.domains);
   const handleFileUpload = (event, domainIndex) => {
-    console.log(domains.value);
     const files = Array.from(event.target.files);
     if (!files.length) return;
 
@@ -32,17 +35,14 @@ export function useImageProcessor(domains) {
   };
 
   const processImage = (file, domainIndex) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.src = e.target.result;
-      img.onload = () => {
-        try {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          const imgData = e.target.result;
-          const exifObj = piexif.load(imgData);
-          const orientation = exifObj['0th'][piexif.ImageIFD.Orientation] || 1;
 
           let width = img.width;
           let height = img.height;
@@ -50,39 +50,81 @@ export function useImageProcessor(domains) {
           const maxWidth = 800;
           const maxHeight = 800;
 
-          if (width > height) {
-            if (width > maxWidth) {
-              height *= maxWidth / width;
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width *= maxHeight / height;
-              height = maxHeight;
-            }
+          if (width > height && width > maxWidth) {
+            height *= maxWidth / width;
+            width = maxWidth;
+          } else if (height > maxHeight) {
+            width *= maxHeight / height;
+            height = maxHeight;
           }
 
           canvas.width = width;
           canvas.height = height;
-
-          // 設置畫布尺寸和方向
-          // setCanvasOrientation(ctx, orientation, width, height);
-
           ctx.drawImage(img, 0, 0, width, height);
 
           canvas.toBlob((blob) => {
             const url = URL.createObjectURL(blob);
             domains.value[domainIndex].images.push(url);
-            domains.value[domainIndex].rotation.push(0);
+            resolve();
           }, 'image/jpeg', 0.7);
-        } catch (error) {
-          console.error("Error reading EXIF data:", error);
-          domains.value[domainIndex].images.push(img.src);
-        }
+        };
       };
-    };
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(file);
+    });
   };
+
+  // const processImage = (file, domainIndex) => {
+  //   const reader = new FileReader();
+  //   reader.onload = (e) => {
+  //     const img = new Image();
+  //     img.src = e.target.result;
+  //     img.onload = () => {
+  //       try {
+  //         const canvas = document.createElement('canvas');
+  //         const ctx = canvas.getContext('2d');
+  //         const imgData = e.target.result;
+  //         const exifObj = piexif.load(imgData);
+  //         const orientation = exifObj['0th'][piexif.ImageIFD.Orientation] || 1;
+
+  //         let width = img.width;
+  //         let height = img.height;
+
+  //         const maxWidth = 800;
+  //         const maxHeight = 800;
+
+  //         if (width > height) {
+  //           if (width > maxWidth) {
+  //             height *= maxWidth / width;
+  //             width = maxWidth;
+  //           }
+  //         } else {
+  //           if (height > maxHeight) {
+  //             width *= maxHeight / height;
+  //             height = maxHeight;
+  //           }
+  //         }
+
+  //         canvas.width = width;
+  //         canvas.height = height;
+
+  //         // 設置畫布尺寸和方向
+  //         // setCanvasOrientation(ctx, orientation, width, height);
+
+  //         ctx.drawImage(img, 0, 0, width, height);
+
+  //         canvas.toBlob((blob) => {
+  //           const url = URL.createObjectURL(blob);
+  //           domains.value[domainIndex].images.push(url);
+  //           domains.value[domainIndex].rotation.push(0);
+  //         }, 'image/jpeg', 0.7);
+  //       } catch (error) {
+  //         console.error("Error reading EXIF data:", error);
+  //         domains.value[domainIndex].images.push(img.src);
+  //       }
+  //     };
+  //   };
+  //   reader.readAsDataURL(file);
+  // };
 
   // const setCanvasOrientation = (ctx, orientation, width, height) => {
   //   switch (orientation) {
