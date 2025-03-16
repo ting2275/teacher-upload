@@ -14,7 +14,8 @@
         <div class="alert alert-info">ex: 114年3月</div>
 
         <label>班級</label>
-        <input type="text" v-model="className" placeholder="輸入班級">
+        <input type="text" v-model="className" maxlength="5" placeholder="輸入班級">
+        <div class="alert alert-info">最多5個字</div>
 
         <label>記錄者</label>
         <input type="text" v-model="recorder" placeholder="輸入記錄者">
@@ -47,6 +48,7 @@
         <div class="alert alert-danger">最多只能上傳 2 張圖片</div>
 
         <textarea v-model="domain.description" @input="checkDescriptionLength(domain)" @blur="validateDescription(domain)" placeholder="請輸入發展領域說明" maxlength="80" rows="4"></textarea>
+        <div class="alert alert-info">字數限制: 80 個字內</div>
 
         <small v-if="domain.description.length >= 80" class="error">⚠️ 最多只能輸入 80 個字！</small>
       </div>
