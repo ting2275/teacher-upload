@@ -79,12 +79,8 @@ export default {
     const domainStore = useDomainStore();
     const domains = computed(() => domainStore.domains);
 
-    const isGeneratingPDF = ref(false);
-    const pdfGenerated = ref(false);
-    const popupMessage = ref("產生PDF中，請稍待片刻...");
-
     const { handleFileUpload, rotateImage, removeImage } = useImageProcessor();
-    const { generatePDF } = usePDFGenerator(unitName, month, recorder, className, isGeneratingPDF, pdfGenerated, popupMessage);
+    const { generatePDF, pdfStatus, errorMessage, clearForm, dismissError } = usePDFGenerator(unitName, month, recorder, className);
 
     watch(unitName, (newVal) => {
       localStorage.setItem('unitName', newVal);
@@ -127,15 +123,16 @@ export default {
       recorder,
       className,
       domains,
-      isGeneratingPDF,
-      pdfGenerated,
-      popupMessage,
+      pdfStatus,
+      errorMessage,
       checkDescriptionLength,
       validateDescription,
       handleFileUpload,
       rotateImage,
       removeImage,
-      generatePDF
+      generatePDF,
+      clearForm,
+      dismissError,
     }
   }
 };
