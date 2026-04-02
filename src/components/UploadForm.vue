@@ -55,9 +55,25 @@
     </section>
 
     <!-- 遮蓋式彈出視窗 -->
-    <div v-if="isGeneratingPDF || pdfGenerated" class="overlay">
+    <div v-if="pdfStatus !== 'idle'" class="overlay">
       <div class="popup">
-        <p>{{ popupMessage }}</p>
+        <template v-if="pdfStatus === 'generating'">
+          <p>產生PDF中，請稍待片刻...</p>
+        </template>
+        <template v-else-if="pdfStatus === 'success'">
+          <p>PDF 已下載！</p>
+          <div class="popup-actions">
+            <button class="popup-btn" @click="generatePDF">再次下載</button>
+            <button class="popup-btn popup-btn--primary" @click="clearForm">清除重填</button>
+          </div>
+        </template>
+        <template v-else-if="pdfStatus === 'error'">
+          <p>{{ errorMessage }}</p>
+          <div class="popup-actions">
+            <button class="popup-btn" @click="generatePDF">重試</button>
+            <button class="popup-btn" @click="dismissError">關閉</button>
+          </div>
+        </template>
       </div>
     </div>
     <button class="pdf-button" @click="generatePDF">📄 產生 PDF</button>
