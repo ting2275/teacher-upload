@@ -218,7 +218,7 @@ export function usePDFGenerator(unitName, month, recorder, className) {
       pdf.addFont("NotoSansTC-Bold.ttf", "NotoSansTC-Bold", "bold");
 
       drawHeader(pdf, unitName, month, className, recorder);
-      drawTable(pdf, domains.value);
+      drawTable(pdf);
 
       const columnWidths = [35, 85, 70];
       await processImages(pdf, startX, startY, rowHeight, columnWidths);
@@ -248,6 +248,7 @@ export function usePDFGenerator(unitName, month, recorder, className) {
 
   const dismissError = () => {
     pdfStatus.value = 'idle';
+    errorMessage.value = '';
   };
 
   return {
