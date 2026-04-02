@@ -1,10 +1,12 @@
-import { nextTick, computed } from "vue";
+import { nextTick, computed, ref } from "vue";
 import { jsPDF } from "jspdf";
 import { useDomainStore } from "@/stores/useDomainStore";
 
-export function usePDFGenerator(unitName, month, recorder, className, isGeneratingPDF, pdfGenerated, popupMessage) {
+export function usePDFGenerator(unitName, month, recorder, className) {
   const domainStore = useDomainStore();
   const domains = computed(() => domainStore.domains);
+  const pdfStatus = ref('idle'); // 'idle' | 'generating' | 'success' | 'error'
+  const errorMessage = ref('');
   const loadFont = async (filename) => {
     const BASE_URL = import.meta.env.BASE_URL || "/";
     const url = `${BASE_URL}fonts/${filename}`;
@@ -200,53 +202,59 @@ export function usePDFGenerator(unitName, month, recorder, className, isGenerati
       return;
     }
 
-    isGeneratingPDF.value = true;
-    pdfGenerated.value = false;
-    popupMessage.value = "產生PDF中，請稍待片刻...";
+    pdfStatus.value = 'generating';
+    errorMessage.value = '';
 
     await nextTick();
 
-    const pdf = new jsPDF("p", "mm", "a4");
+    try {
+      const pdf = new jsPDF("p", "mm", "a4");
 
-    const { fontRegular, fontBold } = await loadFonts();
+      const { fontRegular, fontBold } = await loadFonts();
 
-    // 加入字體
-    pdf.addFileToVFS("NotoSansTC-Regular.ttf", fontRegular);
-    pdf.addFont("NotoSansTC-Regular.ttf", "NotoSansTC", "normal");
-    pdf.addFileToVFS("NotoSansTC-Bold.ttf", fontBold);
-    pdf.addFont("NotoSansTC-Bold.ttf", "NotoSansTC-Bold", "bold");
+      pdf.addFileToVFS("NotoSansTC-Regular.ttf", fontRegular);
+      pdf.addFont("NotoSansTC-Regular.ttf", "NotoSansTC", "normal");
+      pdf.addFileToVFS("NotoSansTC-Bold.ttf", fontBold);
+      pdf.addFont("NotoSansTC-Bold.ttf", "NotoSansTC-Bold", "bold");
 
-    drawHeader(pdf, unitName, month, className, recorder);
-    drawTable(pdf, domains.value);
+      drawHeader(pdf, unitName, month, className, recorder);
+      drawTable(pdf, domains.value);
 
-    const columnWidths = [35, 85, 70];
-    await processImages(pdf, startX, startY, rowHeight, columnWidths);
+      const columnWidths = [35, 85, 70];
+      await processImages(pdf, startX, startY, rowHeight, columnWidths);
 
-    // 設定 PDF 檔名
-    let filename = `發展領域記錄表-${month.value}-${className.value}-${recorder.value}.pdf`;
-    pdf.save(filename);
+      let filename = `發展領域記錄表-${month.value}-${className.value}-${recorder.value}.pdf`;
+      pdf.save(filename);
 
-    isGeneratingPDF.value = false;
-    pdfGenerated.value = true;
-    popupMessage.value = "PDF已完成，請自行下載。";
+      pdfStatus.value = 'success';
+    } catch (e) {
+      errorMessage.value = e.message || '生成失敗，請再試一次';
+      pdfStatus.value = 'error';
+    }
+  };
 
-    unitName.value = "";
-    month.value = "";
-    recorder.value = "";
-    className.value = "";
+  const clearForm = () => {
+    unitName.value = '';
+    month.value = '';
+    recorder.value = '';
+    className.value = '';
     domains.value.forEach(domain => {
       domain.images = [];
-      domain.description = "";
+      domain.description = '';
       domain.rotation = [];
     });
+    pdfStatus.value = 'idle';
+  };
 
-    setTimeout(() => {
-      pdfGenerated.value = false;
-      popupMessage.value = "";
-    }, 3000);
+  const dismissError = () => {
+    pdfStatus.value = 'idle';
   };
 
   return {
     generatePDF,
+    pdfStatus,
+    errorMessage,
+    clearForm,
+    dismissError,
   };
 }
