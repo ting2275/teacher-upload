@@ -6,8 +6,8 @@
       <h2>Step 1: 填寫班級資料</h2>
       <div class="form-group">
         <label>單元名稱</label>
-        <input type="text" v-model="unitName" maxlength="5" placeholder="輸入單元名稱">
-        <div class="alert alert-info">最多只能輸入5個字</div>
+        <input type="text" v-model="unitName" maxlength="7" placeholder="輸入單元名稱">
+        <div class="alert alert-info">最多只能輸入7個字</div>
 
         <label>年+月份</label>
         <input type="text" v-model="month" placeholder="輸入年+月份">

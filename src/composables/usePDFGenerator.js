@@ -66,7 +66,7 @@ export function usePDFGenerator(unitName, month, recorder, className, isGenerati
     pdf.setFont("NotoSansTC", "normal");
     pdf.setFontSize(12);
     pdf.text(`單元名稱: ${unitName.value}`, 10, headerStartY + 15);
-    pdf.text(`年月: ${month.value}`, 60, headerStartY + 15);
+    pdf.text(`年月: ${month.value}`, 70, headerStartY + 15);
     pdf.text(`班級: ${className.value}`, 110, headerStartY + 15);
     pdf.text(`記錄者: ${recorder.value}`, 150, headerStartY + 15);
   };
