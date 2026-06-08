@@ -2,7 +2,7 @@ import { nextTick, computed, ref } from "vue";
 import { jsPDF } from "jspdf";
 import { useDomainStore } from "@/stores/useDomainStore";
 
-const PDF_GENERATOR_VERSION = '1.4.0'; // 字體 base64 改用 IndexedDB 永久快取
+const PDF_GENERATOR_VERSION = '1.5.0'; // 字體改為常用字子集（14.2MB → 3.9MB）
 console.log(`[usePDFGenerator] version ${PDF_GENERATOR_VERSION}`);
 
 let cachedFonts = null;
@@ -12,7 +12,7 @@ let cachedFonts = null;
 const FONT_DB_NAME = 'teacher-upload-fonts';
 const FONT_DB_VERSION = 1;
 const FONT_STORE_NAME = 'fonts';
-const FONT_CACHE_KEY_VERSION = 'v1'; // 字體檔內容變更時請更新此值以讓舊快取失效
+const FONT_CACHE_KEY_VERSION = 'v2'; // 字體檔內容變更時請更新此值以讓舊快取失效（v2: 改用常用字子集）
 
 const openFontDB = () => new Promise((resolve, reject) => {
   if (!('indexedDB' in window)) {
