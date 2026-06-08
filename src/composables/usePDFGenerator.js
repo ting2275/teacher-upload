@@ -2,6 +2,9 @@ import { nextTick, computed, ref } from "vue";
 import { jsPDF } from "jspdf";
 import { useDomainStore } from "@/stores/useDomainStore";
 
+const PDF_GENERATOR_VERSION = '1.2.0'; // 字體分塊轉換 + 快取
+console.log(`[usePDFGenerator] version ${PDF_GENERATOR_VERSION}`);
+
 let cachedFonts = null;
 
 export function usePDFGenerator(unitName, month, recorder, className) {
