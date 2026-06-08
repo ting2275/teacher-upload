@@ -2,6 +2,8 @@ import { nextTick, computed, ref } from "vue";
 import { jsPDF } from "jspdf";
 import { useDomainStore } from "@/stores/useDomainStore";
 
+let cachedFonts = null;
+
 export function usePDFGenerator(unitName, month, recorder, className) {
   const domainStore = useDomainStore();
   const domains = computed(() => domainStore.domains);
@@ -26,6 +28,8 @@ export function usePDFGenerator(unitName, month, recorder, className) {
   };
 
   const loadFonts = async () => {
+    if (cachedFonts) return cachedFonts;
+
     const fontRegular = await loadFont("NotoSansTC-Regular.ttf");
     const fontBold = await loadFont("NotoSansTC-Bold.ttf");
 
@@ -33,7 +37,8 @@ export function usePDFGenerator(unitName, month, recorder, className) {
       throw new Error("字體載入失敗，字體資料為空");
     }
 
-    return { fontRegular, fontBold };
+    cachedFonts = { fontRegular, fontBold };
+    return cachedFonts;
   };
 
   const getRotatedImage = (image, angle) => {
