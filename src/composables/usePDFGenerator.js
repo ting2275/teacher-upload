@@ -2,7 +2,7 @@ import { nextTick, computed, ref } from "vue";
 import { jsPDF } from "jspdf";
 import { useDomainStore } from "@/stores/useDomainStore";
 
-const PDF_GENERATOR_VERSION = '1.2.0'; // 字體分塊轉換 + 快取
+const PDF_GENERATOR_VERSION = '1.3.0'; // 加入各步驟耗時計時 log
 console.log(`[usePDFGenerator] version ${PDF_GENERATOR_VERSION}`);
 
 let cachedFonts = null;
@@ -221,24 +221,37 @@ export function usePDFGenerator(unitName, month, recorder, className) {
     await nextTick();
 
     try {
+      console.time('[PDF] 總耗時');
+
       const pdf = new jsPDF("p", "mm", "a4");
 
+      console.time('[PDF] 載入字體檔');
       const { fontRegular, fontBold } = await loadFonts();
+      console.timeEnd('[PDF] 載入字體檔');
 
+      console.time('[PDF] 嵌入字體到 jsPDF');
       pdf.addFileToVFS("NotoSansTC-Regular.ttf", fontRegular);
       pdf.addFont("NotoSansTC-Regular.ttf", "NotoSansTC", "normal");
       pdf.addFileToVFS("NotoSansTC-Bold.ttf", fontBold);
       pdf.addFont("NotoSansTC-Bold.ttf", "NotoSansTC-Bold", "bold");
+      console.timeEnd('[PDF] 嵌入字體到 jsPDF');
 
+      console.time('[PDF] 畫表頭與表格');
       drawHeader(pdf, unitName, month, className, recorder);
       drawTable(pdf);
+      console.timeEnd('[PDF] 畫表頭與表格');
 
+      console.time('[PDF] 處理並插入圖片');
       const columnWidths = [35, 85, 70];
       await processImages(pdf, startX, startY, rowHeight, columnWidths);
+      console.timeEnd('[PDF] 處理並插入圖片');
 
+      console.time('[PDF] 輸出檔案');
       let filename = `發展領域記錄表-${month.value}-${className.value}-${recorder.value}.pdf`;
       pdf.save(filename);
+      console.timeEnd('[PDF] 輸出檔案');
 
+      console.timeEnd('[PDF] 總耗時');
       pdfStatus.value = 'success';
     } catch (e) {
       errorMessage.value = e.message || '生成失敗，請再試一次';
