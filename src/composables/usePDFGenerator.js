@@ -2,10 +2,58 @@ import { nextTick, computed, ref } from "vue";
 import { jsPDF } from "jspdf";
 import { useDomainStore } from "@/stores/useDomainStore";
 
-const PDF_GENERATOR_VERSION = '1.3.0'; // 加入各步驟耗時計時 log
+const PDF_GENERATOR_VERSION = '1.4.0'; // 字體 base64 改用 IndexedDB 永久快取
 console.log(`[usePDFGenerator] version ${PDF_GENERATOR_VERSION}`);
 
 let cachedFonts = null;
+
+// 字體檔轉成 base64 後存進 IndexedDB，下次造訪（甚至重新整理頁面）時
+// 可直接讀取，不必再下載這個動輒 7MB 的 TTF 檔案。
+const FONT_DB_NAME = 'teacher-upload-fonts';
+const FONT_DB_VERSION = 1;
+const FONT_STORE_NAME = 'fonts';
+const FONT_CACHE_KEY_VERSION = 'v1'; // 字體檔內容變更時請更新此值以讓舊快取失效
+
+const openFontDB = () => new Promise((resolve, reject) => {
+  if (!('indexedDB' in window)) {
+    reject(new Error('indexedDB unavailable'));
+    return;
+  }
+  const request = indexedDB.open(FONT_DB_NAME, FONT_DB_VERSION);
+  request.onupgradeneeded = () => {
+    request.result.createObjectStore(FONT_STORE_NAME);
+  };
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
+
+const idbGetFont = async (key) => {
+  try {
+    const db = await openFontDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(FONT_STORE_NAME, 'readonly');
+      const req = tx.objectStore(FONT_STORE_NAME).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return null;
+  }
+};
+
+const idbSetFont = async (key, value) => {
+  try {
+    const db = await openFontDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(FONT_STORE_NAME, 'readwrite');
+      tx.objectStore(FONT_STORE_NAME).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    // 儲存失敗（例如無痕模式或容量不足）不影響本次產生流程，略過即可
+  }
+};
 
 export function usePDFGenerator(unitName, month, recorder, className) {
   const domainStore = useDomainStore();
@@ -13,6 +61,14 @@ export function usePDFGenerator(unitName, month, recorder, className) {
   const pdfStatus = ref('idle'); // 'idle' | 'generating' | 'success' | 'error'
   const errorMessage = ref('');
   const loadFont = async (filename) => {
+    const dbKey = `${FONT_CACHE_KEY_VERSION}:${filename}`;
+
+    const cached = await idbGetFont(dbKey);
+    if (cached) {
+      console.log(`[PDF] 字體 ${filename} 從本機快取讀取，略過下載`);
+      return cached;
+    }
+
     const BASE_URL = import.meta.env.BASE_URL || "/";
     const url = `${BASE_URL}fonts/${filename}`;
 
@@ -27,7 +83,9 @@ export function usePDFGenerator(unitName, month, recorder, className) {
       binaryString += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
     }
 
-    return btoa(binaryString);
+    const base64 = btoa(binaryString);
+    await idbSetFont(dbKey, base64);
+    return base64;
   };
 
   const loadFonts = async () => {
