@@ -15,7 +15,12 @@ export function usePDFGenerator(unitName, month, recorder, className) {
     if (!response.ok) throw new Error(`Failed to load font: ${url}`);
 
     const fontData = await response.arrayBuffer();
-    const binaryString = new Uint8Array(fontData).reduce((acc, byte) => acc + String.fromCharCode(byte), "");
+    const bytes = new Uint8Array(fontData);
+    const chunkSize = 0x8000;
+    let binaryString = "";
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binaryString += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
 
     return btoa(binaryString);
   };
